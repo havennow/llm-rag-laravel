@@ -1,0 +1,84 @@
+version: "3.9"
+
+services:
+    core:
+        build:
+            args:
+                - USER
+                - UID
+                - GID
+            context: ./.docker/php/
+            dockerfile: Dockerfile
+        hostname: core
+        env_file: .env
+        restart: unless-stopped
+        working_dir: /var/www/
+        volumes:
+            - .:/var/www:rw
+            - ./.docker/php/ini/php.ini-development:/usr/local/etc/php/php.ini
+        ports:
+            - "80:80"
+        environment:
+            - PHP_OPCACHE_VALIDATE_TIMESTAMPS=1
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        networks:
+          - app
+
+    mysql:
+      image: mysql:8
+      hostname: mysql
+      container_name: mysql-app
+      restart: unless-stopped
+      environment:
+        MYSQL_ROOT_PASSWORD: root
+        MYSQL_DATABASE: mysql
+        MYSQL_USER: mysql
+        MYSQL_PASSWORD: mysql
+      volumes:
+        - mysql-data:/var/lib/mysql
+      ports:
+        - "3306:3306"
+      healthcheck:
+        test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "root" ]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+      networks:
+        - app
+
+    pgvector:
+        image: pgvector/pgvector:pg17
+        container_name: pgvector
+        ports:
+            - "5432:5432"
+        volumes:
+            - postgres-data:/var/lib/postgresql/data
+        environment:
+            - TZ=GMT+3
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASSWORD=postgres
+            - POSTGRES_DB=postgres
+        networks:
+            - app
+
+    redis:
+        image: redis
+        hostname: redis
+        build:
+          context: ./
+          dockerfile: ./.docker/redis/Dockerfile
+        restart: unless-stopped
+        ports:
+          - "6379:6379"
+        networks:
+          - app
+
+volumes:
+  mysql-data:
+  postgres-data:
+
+networks:
+  app:
+    driver: bridge
+    external: true
